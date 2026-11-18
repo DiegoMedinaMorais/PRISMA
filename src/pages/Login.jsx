@@ -41,6 +41,17 @@ export default function Login() {
     }
   }
 
+  async function handleDemo() {
+    setError(null)
+    setLoading(true)
+    try {
+      const err = await signIn('superadmin@gmail.com', 'admin123')
+      if (err) setError('Conta demo indisponível. Execute npm run seed:demo no Supabase.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-deep-900 via-deep-950 to-deep-900 px-4 text-slate-100">
       <motion.div
@@ -170,6 +181,20 @@ export default function Login() {
                 {loading && <Loader2 className="size-4 animate-spin" />}
                 {mode === 'login' ? 'Entrar' : 'Criar minha conta'}
               </button>
+
+              <div className="mt-3 rounded-xl border border-aqua-400/20 bg-aqua-500/5 p-3">
+                <p className="mb-2 text-center text-[11px] text-slate-400">
+                  Conta de demonstração · SuperAdmin
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDemo}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-aqua-400/40 py-2.5 text-xs font-bold text-aqua-300 transition hover:bg-aqua-500/15 disabled:opacity-60"
+                >
+                  <Droplets className="size-4" /> Entrar com conta demo
+                </button>
+              </div>
             </form>
           )}
         </div>

@@ -1,0 +1,19 @@
+# Dependências
+node_modules/
+server/node_modules/
+
+# Segredos — NUNCA versionar
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# Build / deploy
+dist/
+.vercel/
+*.log
+
+# Sistema
+.DS_Store

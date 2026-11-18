@@ -216,9 +216,51 @@ Captação ──► SENSOR 1 (laser) ──► limpo? → BYPASS direto (econom
 - **RLS:** usuários só leem/editam o próprio perfil; a elevação de `role` é bloqueada
   pela política de UPDATE; exclusões exigem `is_superadmin()`.
 - **BFF:** criar/excluir usuários exige a `service_role key` — essas ações passam
-  pelo servidor Node (valida JWT + role). Rotas: `GET/POST /api/admin/users`,
-  `PATCH/DELETE /api/admin/users/:id`.
+  pelo servidor Node (`server/app.js`; valida JWT + role). Rotas:
+  `GET/POST /api/admin/users`, `PATCH/DELETE /api/admin/users/:id`.
+  Local roda via `server/index.js`; na Vercel via `api/[...path].js`.
 - Cada registro em `readings` guarda: cenário (NF ativa na rede ou não), ppm médio
   de entrada/saída, massa recuperada, economia e se alguma NF estava ativa.
 - **Segurança:** nunca versionar `.env` (está no `.gitignore`). Se a `sb_secret_`
   vazar, troque-a no painel do Supabase.
+
+## Deploy na Vercel (usando o Supabase do dono do projeto)
+
+Todos os visitantes usam **o mesmo** projeto Supabase — ninguém precisa criar o seu.
+As chaves ficam só nas variáveis de ambiente da Vercel.
+
+1. No painel da Vercel → **Settings → Environment Variables**, adicione:
+
+   | Variável | Valor | Onde aparece |
+   |---|---|---|
+   | `VITE_SUPABASE_URL` | URL do seu projeto Supabase | frontend (público) |
+   | `VITE_SUPABASE_ANON_KEY` | chave anônima | frontend (público) |
+   | `VITE_API_URL` | **vazio** (string vazia) | frontend → usa `/api` relativo |
+   | `SUPABASE_URL` | a mesma URL | BFF (servidor) |
+   | `SUPABASE_SERVICE_ROLE_KEY` | service_role key | BFF (**secreta**) |
+
+   > `VITE_*` são incorporadas no build; configure antes de dar o deploy.
+
+2. **Build & Output:** a Vercel detecta Vite automaticamente (`vercel.json` já define
+   `npm run build` → `dist`). O BFF sobe como função serverless em `api/[...path].js`.
+
+3. **Conta demo:** uma vez, com as credenciais reais no `server/.env` local, rode:
+
+   ```bash
+   npm run seed:demo
+   ```
+
+   Isso cria/atualiza `superadmin@gmail.com` / `admin123` com `role=superadmin`.
+   O login tem um botão **"Entrar com conta demo"** que já preenche e autentica.
+
+4. No Supabase → **Authentication → URL Configuration**, adicione a URL da Vercel
+   em *Site URL* e *Redirect URLs* (ex.: `https://prisma-<hash>.vercel.app/**`).
+
+5. Aplique `supabase/schema.sql` no SQL Editor se ainda não tiver aplicado.
+
+### ⚠️ Aviso sobre a conta demo
+
+Qualquer visitante do link poderá entrar como SuperAdmin e, portanto, criar/excluir
+usuários e ver todos os dados. Isso é intencional para a apresentação. Se depois
+quiser fechar, rode `npm run seed:demo` com outro e-mail/senha ou remova o botão em
+`src/pages/Login.jsx`.

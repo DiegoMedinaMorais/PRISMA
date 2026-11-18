@@ -17,5 +17,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-/** URL base do BFF Node (server/index.js) */
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333'
+/**
+ * URL base do BFF.
+ * - Local: http://localhost:3333
+ * - Vercel: '' (caminho relativo /api — mesma origem do frontend)
+ * Use VITE_API_URL='' nas variáveis da Vercel para forçar relativo.
+ */
+export const API_URL =
+  import.meta.env.VITE_API_URL ??
+  (import.meta.env.PROD ? '' : 'http://localhost:3333')
