@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply font-sans antialiased bg-slate-100 text-slate-900 dark:bg-deep-900 dark:text-slate-100 transition-colors duration-300;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-300 dark:bg-slate-700;
+  }
+}
+
+@layer components {
+  /* Superfície padrão de painel (HMI): borda fina, fundo sólido, sombra discreta */
+  .surface {
+    @apply rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-deep-800/60 shadow-card;
+  }
+}
