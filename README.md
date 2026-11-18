@@ -1,4 +1,4 @@
-# PRISMA · MVP
+# PRISMA
 
 **P**rocesso de **R**emoção **I**nteligente e **S**ustentável de **M**icroplásticos **A**quáticos — app de monitoramento (SCADA/IoT) de uma estação de tratamento com 4 estágios.
 
