@@ -1,133 +1,203 @@
 # PRISMA · MVP
 
-**P**rocesso de **R**emoção **I**nteligente e **S**ustentável de **M**icroplásticos **A**quáticos — app de monitoramento (SCADA/IoT) de uma estação de tratamento com 4 estágios.
+**P**rocesso de **R**emoção **I**nteligente e **S**ustentável de **M**icroplásticos **A**quáticos —
+app de monitoramento SCADA/IoT de uma rede de estações de tratamento.
+
+O sistema detecta microplásticos com sensores a laser e só aciona a nanofiltração
+quando necessário, economizando energia. O painel simula a planta em tempo real,
+registra leituras no Supabase e separa acessos por perfil.
+
+---
+
+## Acesso rápido
+
+| Onde | Endereço | O que é |
+|---|---|---|
+| 💻 Local | http://localhost:5173 | App (frontend) |
+| ⚙️ Local | http://localhost:3333/api/health | BFF (API) |
+| ☁️ Produção | _URL da Vercel_ | Link de apresentação |
+
+### 🔑 Conta de demonstração (SuperAdmin)
+
+```
+E-mail:  superadmin@gmail.com
+Senha:   admin123
+```
+
+Na tela de login, clique em **"Entrar com conta demo"** — entra automaticamente
+com acesso total. A conta existe no **Supabase do dono do projeto**, criada por:
+
+```bash
+npm run seed:demo     # idempotente: cria ou atualiza a conta demo
+```
+
+> ⚠️ Qualquer visitante do link pode entrar como SuperAdmin. Isso é intencional
+> para a apresentação. Para fechar depois, troque as credenciais com o seed ou
+> remova o botão em `src/pages/Login.jsx`.
+
+---
 
 ## Arquitetura
 
 ```
-├── supabase/schema.sql      ← rode no SQL Editor (tabelas, RLS, trigger, bucket)
-├── server/                  ← BFF Node (rotas SuperAdmin c/ service_role)
+├── api/
+│   └── [...path].js         ← função serverless da Vercel (BFF)
+├── server/
+│   ├── app.js               ← rotas Express + validação JWT/role (compartilhado)
+│   ├── index.js             ← servidor local (porta 3333)
+│   ├── seed-demo.mjs        ← cria/garante a conta SuperAdmin demo
+│   └── check-users.mjs / confirm-email.mjs  ← utilitários
+├── supabase/schema.sql      ← tabelas, RLS, trigger, bucket (SQL Editor)
 ├── src/
-│   ├── context/             ← Auth, Theme (dark/light) e Process (motor da planta)
+│   ├── context/             ← Auth, Theme (dark/light), Process (motor da planta)
 │   ├── components/          ← AppLayout, Sidebar, BottomNav, Units, StatCard, AlarmBanner
-│   └── pages/               ← Login, Dashboard, Controle (Simulator), History, Profile, Admin
-└── .env                     ← copie de .env.example
+│   ├── pages/               ← Login, Dashboard, Simulator, History, Reports, Configs, Profile, Admin
+│   └── lib/supabaseClient.js← cliente Supabase + URL do BFF
+├── .env                     ← frontend (VITE_*) — NÃO versionar
+├── server/.env              ← BFF (service_role) — NÃO versionar
+├── vercel.json              ← build/regras de rota na Vercel
+└── docs/PROMPT_COPILOT.md    ← prompt pronto para publicar via Copilot
 ```
 
-| Porta | O que é | O que vê |
+**Fluxo de autorização das rotas administrativas:**
+
+```
+Browser → BFF (JWT do Supabase) → admin.auth.getUser(token)
+        → profiles.role === 'superadmin' → service_role key → Supabase Admin API
+```
+
+A `service_role key` **nunca** vai para o navegador.
+
+---
+
+## Rodando localmente
+
+### Resumo
+
+```bash
+npm install
+npm install --prefix server
+npm run dev:all        # frontend + BFF no mesmo terminal
+```
+
+Comandos individuais: `npm run dev` (web) e `npm run server` (BFF).
+
+### Do zero (passo a passo)
+
+1. **Supabase:** crie um projeto em [supabase.com/dashboard](https://supabase.com/dashboard)
+   (região South America / São Paulo) e rode **todo** `supabase/schema.sql` no SQL Editor.
+   Isso cria `profiles` (RLS), `readings`, o trigger de perfil e o bucket `avatars`.
+
+2. **Chaves** em *Project Settings → API / API Keys*:
+   - **Project URL** → `https://<ref>.supabase.co`
+   - **anon public** → `sb_publishable_...` (público)
+   - **service_role** → `sb_secret_...` ⚠️ secreto, só no BFF
+
+3. **Ambiente:** copie os exemplos e preencha.
+
+   ```bash
+   cp .env.example .env
+   cp server/.env.example server/.env
+   ```
+
+   | Arquivo | Variável | Valor |
+   |---|---|---|
+   | `.env` | `VITE_SUPABASE_URL` | Project URL |
+   | `.env` | `VITE_SUPABASE_ANON_KEY` | `sb_publishable_...` |
+   | `.env` | `VITE_API_URL` | `http://localhost:3333` |
+   | `server/.env` | `SUPABASE_URL` | a mesma URL |
+   | `server/.env` | `SUPABASE_SERVICE_ROLE_KEY` | `sb_secret_...` |
+   | `server/.env` | `PORT` | `3333` |
+
+   > `.env` é lido na inicialização — reinicie `dev:all` após editar.
+
+4. **Conta demo:** `npm run seed:demo`.
+
+5. **Rodar:** `npm run dev:all` → frontend em :5173, BFF em :3333.
+
+---
+
+## Deploy na Vercel
+
+Todos os visitantes usam **o mesmo** Supabase — ninguém precisa criar o seu.
+As chaves ficam apenas nas variáveis de ambiente da Vercel.
+
+### 1. Enviar o código
+
+O commit de preparação já está feito (`7f813ea`). Basta:
+
+```bash
+git push origin main
+```
+
+> Dica: use o prompt pronto em [`docs/PROMPT_COPILOT.md`](docs/PROMPT_COPILOT.md)
+> para o Copilot fazer push, configurar e validar o deploy.
+
+### 2. Importar na Vercel
+
+- Repositório: `DiegoMedinaMorais/PRISMA`, branch `main`
+- Framework: **Vite** (detectado automaticamente)
+- Build: `npm run build` · Output: `dist` · Install: `npm install`
+- Tudo isso já está declarado em `vercel.json`.
+- O BFF sobe como a função serverless `api/[...path].js` (rotas `/api/*`).
+
+### 3. Variáveis de ambiente
+
+Em **Settings → Environment Variables** (Production, Preview e Development):
+
+| Variável | Valor | Onde aparece |
 |---|---|---|
-| `localhost:5173` | 🎨 App (frontend) | O PRISMA completo (login, dashboard...) |
-| `localhost:3333` | ⚙️ BFF (API) | Só endpoints — abrir no navegador mostra página explicativa |
+| `VITE_SUPABASE_URL` | URL do seu Supabase | frontend (público) |
+| `VITE_SUPABASE_ANON_KEY` | `sb_publishable_...` | frontend (público) |
+| `VITE_API_URL` | **vazia** (string vazia) | frontend → `/api` relativo |
+| `SUPABASE_URL` | a mesma URL | BFF (servidor) |
+| `SUPABASE_SERVICE_ROLE_KEY` | `sb_secret_...` | BFF (**secreta**) |
 
-## Como rodar (resumo de 1 linha)
+> `VITE_*` são embutidas no build. Configure **antes** de dar o deploy.
+
+### 4. Supabase
+
+- **Authentication → URL Configuration:** adicione a URL da Vercel em *Site URL*
+  e *Redirect URLs* (ex.: `https://prisma-xxx.vercel.app/**`).
+- Rode `supabase/schema.sql` se ainda não tiver aplicado.
+- Garanta a conta demo: `npm run seed:demo` (local, com `server/.env` real).
+
+### 5. Validar
 
 ```bash
-npm run dev:all      # sobe frontend + BFF juntos em um único terminal
+curl https://<url>/api/health
+# {"status":"ok","service":"prisma-bff"}
 ```
 
-Comandos individuais (se preferir): `npm run dev` (só web) e `npm run server` (só BFF).
+Abra a URL → tela de login → **"Entrar com conta demo"** → menu *Gestão SuperAdmin*.
 
-## Passo a passo de implantação (do zero)
+---
 
-### 1. Criar o projeto no Supabase
-1. Acesse [supabase.com/dashboard](https://supabase.com/dashboard) → **New project**.
-2. Preencha: **Name** `prisma`, **Database Password** (guarde, não usamos no app), **Region** `South America (São Paulo)`.
-3. Aguarde ~2 min até o painel carregar.
+## Funcionalidades
 
-### 2. Rodar o schema (cria as tabelas)
-1. No menu lateral do projeto, abra o **SQL Editor**.
-2. **New query** → cole **todo** o conteúdo de `supabase/schema.sql` → **Run**.
-3. "Success. No rows returned" = sucesso. Cria: tabela `profiles` (com RLS), tabela `readings`, trigger que cria o perfil a cada cadastro e o **bucket `avatars`** (público).
+| Requisito | Onde |
+|---|---|
+| Login/Cadastro (Supabase Auth) | `src/pages/Login.jsx` |
+| Conta demo SuperAdmin | `src/pages/Login.jsx` + `scripts/seed-demo.mjs` |
+| Perfis + foto (Supabase Storage) | `src/pages/Profile.jsx` |
+| SuperAdmin gerencia usuários | `src/pages/Admin.jsx` + `server/app.js` (BFF) |
+| Rede com 5 ETAs ao vivo (HMI) | `src/pages/Dashboard.jsx` + `components/Units.jsx` |
+| Motor PRISMA (Sensor 1 → FAD → Sensor 2 → NF bypass/ativa) | `src/context/ProcessContext.jsx` |
+| Gráfico da rede (10 min, eixo/limite/legenda) | `components/NetworkChart.jsx` |
+| Controle de operação (manutenção + alarmes + registros) | `src/pages/Simulator.jsx` |
+| Relatórios por período + exportação CSV | `src/pages/Reports.jsx` |
+| Configurações (tema, banner de alarmes, especificação) | `src/pages/Configs.jsx` |
+| Histórico de leituras | `src/pages/History.jsx` (tabela `readings`) |
+| Dark/Light mode | `ThemeContext.jsx` (transição suave) |
+| Bottom Menu + Sidebar | `BottomNav.jsx` / `Sidebar.jsx` |
 
-### 3. Pegar as chaves da API
-Em **Project Settings → API / API Keys**, copie:
-- **Project URL** — se não aparecer, monte você mesmo: o código após `/project/` na barra de endereço é o subdomínio → `https://SEUCODIGO.supabase.co`
-- **anon public** — no formato novo começa com `sb_publishable_...`
-- **service_role** — no formato novo começa com `sb_secret_...` ⚠️ *secreta! Nunca exponha no frontend nem publique.*
+---
 
-### 4. Variáveis de ambiente
-```bash
-copy .env.example .env           # Windows (no Mac/Linux: cp)
-copy server\.env.example server\.env
-```
-| Arquivo | Variável | Valor |
-|---|---|---|
-| `.env` | `VITE_SUPABASE_URL` | Project URL |
-| `.env` | `VITE_SUPABASE_ANON_KEY` | anon / `sb_publishable_...` |
-| `.env` | `VITE_API_URL` | `http://localhost:3333` |
-| `server\.env` | `SUPABASE_URL` | Project URL (a mesma) |
-| `server\.env` | `SUPABASE_SERVICE_ROLE_KEY` | service_role / `sb_secret_...` |
-| `server\.env` | `PORT` | `3333` |
+## A planta · rede com 5 ETAs
 
-> ⚠️ O `.env` só é lido na inicialização — depois de editar, **reinicie** o `dev:all`.
-
-### 5. Instalar dependências
-```bash
-npm install                  # raiz (Vite + React + Tailwind)
-npm install --prefix server  # BFF (Express + Supabase admin)
-```
-
-### 6. Rodar
-```bash
-npm run dev:all
-```
-- Frontend → http://localhost:5173
-- BFF → http://localhost:3333 (health: `/api/health`)
-
-### 7. Criar a primeira conta
-1. No app → aba **Criar conta** → cadastre com **um e-mail real seu** e uma senha (6+ caracteres).
-2. Se aparecer "email ou senha incorretos" logo após criar, veja a seção **Confirmação de e-mail** abaixo.
-
-### 8. Promover o primeiro SuperAdmin
-No **SQL Editor** do Supabase (troque o e-mail pelo que você cadastrou):
-```sql
-update public.profiles set role = 'superadmin'
-where id = (select id from auth.users where email = 'voce@email.com');
-```
-Relogue no app → o menu **Gestão SuperAdmin** aparece na Sidebar.
-
-## Solução de problemas (troubleshooting)
-
-### "email ou senha incorretos" logo depois de criar a conta
-A conta existe, mas o Supabase exige **confirmação de e-mail** antes de liberar o login (a mensagem dele é genérica/enganosa). Duas soluções:
-
-**A) Desativar a confirmação (recomendado em dev):**
-- Supabase → **Authentication** → **Sign In / Providers** → **Email** → desligue **"Confirm email"** → Save.
-
-**B) Confirmar a conta manualmente** (scripts prontos em `server/`):
-```bash
-# ver usuários cadastrados e se estão confirmados
-node --env-file=server/.env server/check-users.mjs
-
-# confirmar o e-mail de um usuário
-node --env-file=server/.env server/confirm-email.mjs email@exemplo.com
-```
-
-### "Port 5173 is in use" ou "EADDRINUSE: 3333"
-Já existe outra instância rodando em algum terminal (ou em segundo plano). Feche ela (Ctrl+C) antes de rodar `dev:all` de novo.
-
-### "Cannot GET /" no navegador
-Você abriu a porta do **backend** (`:3333`). O app fica em **http://localhost:5173**.
-
-### OneDrive trava a instalação (`EBUSY` / `EPERM` no esbuild.exe)
-O OneDrive sincroniza o `node_modules` e trava executáveis durante o sync. Solução aplicada neste projeto: os `node_modules` ficam **fora do OneDrive** e são vinculados por junction:
-```
-node_modules          → C:\Users\User\.prisma-deps\node_modules
-server\node_modules   → C:\Users\User\.prisma-deps-server\node_modules
-```
-Para recriar em outra máquina:
-```bash
-mkdir C:\Users\User\.prisma-deps\node_modules
-cmd /c mklink /J node_modules C:\Users\User\.prisma-deps\node_modules
-mkdir C:\Users\User\.prisma-deps-server\node_modules
-cmd /c mklink /J server\node_modules C:\Users\User\.prisma-deps-server\node_modules
-```
-
-## A planta · rede com 5 ETAs, cada uma com a máquina PRISMA completa
-
-O painel monitora uma operação **contínua** (estilo SCADA/HMI) de uma **rede com 5 ETAs**.
-**Todas as unidades possuem a máquina PRISMA completa** — sensor de entrada, separação FAD
-com reciclagem, sensor de saída e nanofiltração (em bypass ou ativa):
+O painel monitora uma operação **contínua** (estilo SCADA/HMI) de uma rede com
+**5 ETAs**. Todas possuem a máquina PRISMA completa: sensor de entrada, separação
+FAD com reciclagem, sensor de saída e nanofiltração (em bypass ou ativa).
 
 | Unidade | Bairro | Vazão nominal | Sensibilidade do ponto de captação |
 |---|---|---|---|
@@ -137,130 +207,78 @@ com reciclagem, sensor de saída e nanofiltração (em bypass ou ativa):
 | `ETA-04` | Sul | 2,5 m³/h | 1,05× |
 | `ETA-05` | Poente | 2,0 m³/h | 1,20× |
 
-### Arquitetura conceitual do PRISMA (o que o motor simula)
+### Como funciona
 
-1. **Sensor 1 (entrada):** um sensor a laser vigia a água que chega a cada ETA.
-   - Plástico **não detectado** (afluente ≤ 0,05 ppm) → água passa **direto** (bypass),
-     sem gastar energia de tratamento;
-   - Plástico **detectado** (> 0,05 ppm) → a água é **desviada** para a separação:
-     injeção de aglutinante + microbolhas de ar fazem o plástico boiar (separação FAD),
-     que é retirado e enviado a **cooperativas de reciclagem**.
-2. **Sensor 2 (saída · lógica falha-segura):** vigia a água pós-limpeza.
-   - Água **100% segura** (residual ≤ 0,15 ppm) → o filtro pesado de alta pressão
-     (nanofiltração) permanece **em BYPASS, desligado**;
-   - Passou **alguma partícula minúscula** (residual > 0,15 ppm = 3× o limite de consumo
-     humano) → a **nanofiltração da própria ETA liga automaticamente** e volta ao bypass
-     quando o residual cai (< 0,08 ppm — histerese, sem oscilar no limiar).
-3. **O diferencial:** ao não deixar a filtragem de alta pressão ligada 24 h sem
-   necessidade, o PRISMA garante água segura e projeta **economia de mais de 70%**
-   na energia das estações (no painel, o KPI "Economia de energia" calcula isso ao vivo).
+1. **Sensor 1 (entrada):** laser vigia a água que chega.
+   - Limpo (≤ 0,05 ppm) → **bypass direto**, sem gastar energia;
+   - Plástico (> 0,05 ppm) → **desvio** para separação FAD (aglutinante +
+     microbolhas). O plástico boiado vai para **cooperativas de reciclagem**.
+2. **Sensor 2 (saída · falha-segura):**
+   - Residual ≤ 0,15 ppm → nanofiltração em **BYPASS**;
+   - Residual > 0,15 ppm → NF **liga automaticamente** e volta ao bypass
+     quando cai abaixo de 0,08 ppm (histerese, sem oscilar no limiar).
+3. **Diferencial:** não manter a filtragem de alta pressão ligada 24 h →
+   **economia de mais de 70%** de energia (KPI calculado ao vivo).
 
 ```
 Captação ──► SENSOR 1 (laser) ──► limpo? → BYPASS direto (economia)
-                  │
-                  └── plástico? → DESVIO → separação FAD (aglutinante + microbolhas)
-                              → plástico retirado → cooperativas de reciclagem
-                              → SENSOR 2 (falha-segura)
-                                    ├── água 100% segura → NF em BYPASS
-                                    └── passou partícula minúscula → NF ATIVA
+                   │
+                   └── plástico? → DESVIO → FAD (aglutinante + microbolhas)
+                               → cooperativas de reciclagem
+                               → SENSOR 2 (falha-segura)
+                                     ├── seguro → NF em BYPASS
+                                     └── partícula minúscula → NF ATIVA
 ```
 
-- **Eventos de carga:** a captação opera numa faixa normal (0,02–0,12 ppm) e, de vez em
-  quando, um evento eleva o afluente (1,5–12 ppm) por 2–6 min — depois volta ao normal.
-  É nesses eventos que as rotas mudam (bypass → desvio FAD) e, se a limpeza comum não
-  der conta, a NF aciona sozinha;
-- **Estoque e cooperativas:** o plástico boiado fica em estoque e, ao fechar lote
-  (50 g), é despachado para as cooperativas de reciclagem — alarme de despacho +
-  card "Reciclagem" no painel (capturado / em estoque / entregue);
+- **Eventos de carga:** faixa normal 0,02–0,12 ppm; de vez em quando um evento
+  eleva o afluente (1,5–12 ppm) por 2–6 min.
+- **Estoque e cooperativas:** lote de 50 g fechado → despacho + card "Reciclagem".
 - **Falhas e manutenções** acontecem e se resolvem sozinhas, gerando alarmes.
 
-### Gráficos e estatísticas
-- **Gráfico principal (10 min):** afluente (área preenchida) × saída (linha) com grade,
-  eixo em ppm, rótulos de tempo (-10 min / -5 min / agora) e linha tracejada do limite;
-- **Barra de conformidade por ETA:** onde a saída está em relação ao limite (verde
-  dentro / vermelho fora, marcador do limite no meio da escala);
-- **Gerais (sessão):** disponibilidade, energia economizada (kWh), plástico recuperado
-  e nº de acionamentos de NF.
+### Gráficos
+
+- **Principal (10 min):** afluente (área) × saída (linha), eixo em ppm, limites e rótulos de tempo.
+- **Conformidade por ETA:** verde dentro do limite / vermelho fora.
+- **Sessão:** disponibilidade, energia economizada (kWh), plástico recuperado, acionamentos de NF.
 
 ### Controle de operação
-- **Ordens de manutenção** por ETA (botão no rodapé do card: 🔧 enviar / ↺ restaurar);
-- **Histórico de alarmes** (últimos 8, com horário);
-- **Registro manual** de leitura agregada; a rede também registra sozinha a cada 4 min
-  e no fim de cada evento de NF.
 
-## Funcionalidades
+- Ordens de manutenção por ETA (🔧 enviar / ↺ restaurar);
+- Histórico dos últimos 8 alarmes com horário;
+- Registro manual de leitura; a rede também registra sozinha a cada 4 min e no fim de cada evento de NF.
 
-| Requisito | Onde |
-|---|---|
-| Login/Cadastro (Supabase Auth) | `src/pages/Login.jsx` |
-| Perfis + foto (Supabase Storage) | `src/pages/Profile.jsx` |
-| SuperAdmin gerencia usuários | `src/pages/Admin.jsx` + `server/index.js` (BFF) |
-| Rede com 5 ETAs ao vivo (HMI) | `src/pages/Dashboard.jsx` + `components/Units.jsx` |
-| Motor do pitch (Sensor 1 → desvio FAD → Sensor 2 → NF bypass/ativa) | `src/context/ProcessContext.jsx` |
-| Gráfico da rede (10 min, eixo/limite/legenda) | `components/NetworkChart.jsx` |
-| Controle de operação (manutenção + alarmes + registros) | `src/pages/Simulator.jsx` |
-| Relatórios por período (24h/7d/30d/tudo) + exportação CSV | `src/pages/Reports.jsx` |
-| Configurações (tema, banner de alarmes, especificação) | `src/pages/Configs.jsx` |
-| Histórico de leituras | `src/pages/History.jsx` (tabela `readings`) |
-| Dark/Light mode | `ThemeContext.jsx` (transição suave) |
-| Bottom Menu + Sidebar | `BottomNav.jsx` / `Sidebar.jsx` |
+---
 
 ## Notas técnicas
 
-- **Motor contínuo:** tick de 2 s — carga da bacia por passeio aleatório com eventos
-  de carga ocasionais; cada ETA executa a máquina PRISMA a cada tick.
-- **Modelo de energia:** sensores a laser (0,04 kW) sempre ligados; separação FAD
-  (0,64 kW por m³/h) só quando a água é desviada; nanofiltração (2,45 kW por m³/h)
-  em bypass a 5% do consumo nominal. Referência = tudo ligado 24 h (~53 kW);
-  a economia exibida é a diferença para o consumo real.
-- **RLS:** usuários só leem/editam o próprio perfil; a elevação de `role` é bloqueada
-  pela política de UPDATE; exclusões exigem `is_superadmin()`.
-- **BFF:** criar/excluir usuários exige a `service_role key` — essas ações passam
-  pelo servidor Node (`server/app.js`; valida JWT + role). Rotas:
-  `GET/POST /api/admin/users`, `PATCH/DELETE /api/admin/users/:id`.
-  Local roda via `server/index.js`; na Vercel via `api/[...path].js`.
-- Cada registro em `readings` guarda: cenário (NF ativa na rede ou não), ppm médio
-  de entrada/saída, massa recuperada, economia e se alguma NF estava ativa.
-- **Segurança:** nunca versionar `.env` (está no `.gitignore`). Se a `sb_secret_`
-  vazar, troque-a no painel do Supabase.
+- **Motor contínuo:** tick de 2 s com passeio aleatório; cada ETA executa a máquina a cada tick.
+- **Energia:** laser 0,04 kW sempre ligado; FAD 0,64 kW por m³/h só no desvio;
+  NF 2,45 kW por m³/h em bypass a 5%. Referência ≈ 53 kW (tudo ligado 24 h).
+- **RLS:** usuários leem/editam só o próprio perfil; elevação de `role` bloqueada
+  por política de UPDATE; exclusões exigem `is_superadmin()`.
+- **BFF:** `GET/POST /api/admin/users` e `PATCH/DELETE /api/admin/users/:id`.
+  Local via `server/index.js`; Vercel via `api/[...path].js`.
+- **Readings:** guardam cenário (NF ativa ou não), ppm de entrada/saída, massa
+  recuperada, economia e se alguma NF esteve ativa.
+- **Segurança:** `.env` está no `.gitignore`. Se uma `sb_secret_` vazar, troque-a no painel.
 
-## Deploy na Vercel (usando o Supabase do dono do projeto)
+---
 
-Todos os visitantes usam **o mesmo** projeto Supabase — ninguém precisa criar o seu.
-As chaves ficam só nas variáveis de ambiente da Vercel.
+## Solução de problemas
 
-1. No painel da Vercel → **Settings → Environment Variables**, adicione:
+| Sintoma | Causa / solução |
+|---|---|
+| "email ou senha incorretos" ao criar conta | Confirmação de e-mail ativa. Desligue em *Authentication → Sign In / Providers → Email → Confirm email*, ou use `node --env-file=server/.env server/confirm-email.mjs EMAIL`. |
+| `EADDRINUSE` / "Port 5173 in use" | Já existe instância rodando. Encerre-a (Ctrl+C) antes de `dev:all`. |
+| "Cannot GET /" | Você abriu a porta :3333 (BFF). O app está em :5173. |
+| `/api/health` falha na Vercel | Faltam `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` nas env vars da função. |
+| `EBUSY`/`EPERM` no esbuild (OneDrive) | `node_modules` fora do OneDrive via junction — veja o histórico do projeto. |
+| Quero ver usuários / confirmar e-mail | `node --env-file=server/.env server/check-users.mjs` e `server/confirm-email.mjs EMAIL`. |
 
-   | Variável | Valor | Onde aparece |
-   |---|---|---|
-   | `VITE_SUPABASE_URL` | URL do seu projeto Supabase | frontend (público) |
-   | `VITE_SUPABASE_ANON_KEY` | chave anônima | frontend (público) |
-   | `VITE_API_URL` | **vazio** (string vazia) | frontend → usa `/api` relativo |
-   | `SUPABASE_URL` | a mesma URL | BFF (servidor) |
-   | `SUPABASE_SERVICE_ROLE_KEY` | service_role key | BFF (**secreta**) |
+---
 
-   > `VITE_*` são incorporadas no build; configure antes de dar o deploy.
+## Links úteis
 
-2. **Build & Output:** a Vercel detecta Vite automaticamente (`vercel.json` já define
-   `npm run build` → `dist`). O BFF sobe como função serverless em `api/[...path].js`.
-
-3. **Conta demo:** uma vez, com as credenciais reais no `server/.env` local, rode:
-
-   ```bash
-   npm run seed:demo
-   ```
-
-   Isso cria/atualiza `superadmin@gmail.com` / `admin123` com `role=superadmin`.
-   O login tem um botão **"Entrar com conta demo"** que já preenche e autentica.
-
-4. No Supabase → **Authentication → URL Configuration**, adicione a URL da Vercel
-   em *Site URL* e *Redirect URLs* (ex.: `https://prisma-<hash>.vercel.app/**`).
-
-5. Aplique `supabase/schema.sql` no SQL Editor se ainda não tiver aplicado.
-
-### ⚠️ Aviso sobre a conta demo
-
-Qualquer visitante do link poderá entrar como SuperAdmin e, portanto, criar/excluir
-usuários e ver todos os dados. Isso é intencional para a apresentação. Se depois
-quiser fechar, rode `npm run seed:demo` com outro e-mail/senha ou remova o botão em
-`src/pages/Login.jsx`.
+- [Prompt para o Copilot publicar na Vercel](docs/PROMPT_COPILOT.md)
+- [Schema Supabase](supabase/schema.sql)
+- [Supabase Dashboard](https://supabase.com/dashboard)
