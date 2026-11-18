@@ -5,6 +5,7 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/[...path].js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
